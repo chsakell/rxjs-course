@@ -1,10 +1,13 @@
 import { Component, OnInit } from "@angular/core";
 import { Course } from "../model/course";
-import { interval, noop, Observable, of, timer } from "rxjs";
+import { interval, noop, Observable, of, throwError, timer } from "rxjs";
 import {
   catchError,
   delayWhen,
+  finalize,
   map,
+  publishReplay,
+  refCount,
   retryWhen,
   shareReplay,
   tap,
@@ -25,25 +28,31 @@ export class HomeComponent implements OnInit {
   ngOnInit() {
     const http$ = createHttpObservable("/api/courses");
 
-    const courses$: Observable<Course[]> = http$
-      .pipe(
-        tap(() => console.log('HTTP request executed')),
-        map((res) => res["payload"]),
-        shareReplay()
-      );
+    const courses$: Observable<Course[]> = http$.pipe(
+      catchError((err) => {
+        console.log(err);
 
-    this.beginnersCourses$ = courses$
-      .pipe(
-        map(courses => courses.filter(
-          (course) => course.category == "BEGINNER"
-        ))
-      );
+        return throwError(err);
+      }),
+      finalize(() => {
+        // completes or errors
+        console.log("Finalize executed..");
+      }),
+      tap(() => console.log("HTTP request executed")),
+      map((res) => res["payload"]),
+      shareReplay()
+    );
 
-      this.advancedCourses$ = courses$
-      .pipe(
-        map(courses => courses.filter(
-          (course) => course.category == "ADVANCED"
-        ))
-      );
+    this.beginnersCourses$ = courses$.pipe(
+      map((courses) =>
+        courses?.filter((course) => course.category == "BEGINNER")
+      )
+    );
+
+    this.advancedCourses$ = courses$.pipe(
+      map((courses) =>
+        courses?.filter((course) => course.category == "ADVANCED")
+      )
+    );
   }
 }
